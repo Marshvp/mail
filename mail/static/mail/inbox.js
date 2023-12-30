@@ -19,6 +19,7 @@ function compose_email() {
   document.querySelector('#emails-view').style.display = 'none';
   document.querySelector('#compose-view').style.display = 'block';
   document.querySelector('#view_mail').style.display = 'none';
+  document.querySelector('#reply-view').style.display = 'none'
 
   // Clear out composition fields
   document.querySelector('#compose-recipients').value = '';
@@ -33,6 +34,7 @@ function load_mailbox(mailbox) {
   document.querySelector('#emails-view').style.display = 'block';
   document.querySelector('#compose-view').style.display = 'none';
   document.querySelector('#view_mail').style.display = 'none';
+  document.querySelector('#reply-view').style.display = 'none'
 
   fetch(`emails/${mailbox}`)
   .then(res => res.json())
@@ -47,8 +49,9 @@ function load_mailbox(mailbox) {
         <strong>From:</strong> ${email.sender} <br>
         <strong>Subject:</strong> ${email.subject} <br>
         <strong>Timestamp:</strong> ${email.timestamp} <br>
-        <a href="#" class="openmail" data-email-id="${email.id}">View Email</a>
-        <a href="#" class="archiveMail" data-email-id="${email.id}">${email.archived ? 'Unarchive' : 'Archive'}</a>
+        <a href="#" class="openmail btn btn-primary" data-email-id="${email.id}">View Email</a>
+        <a href="#" class="reply btn btn-danger" data-email-id=${email.id}">Reply</a>
+        <a href="#" class="archiveMail btn btn-primary" data-email-id="${email.id}">${email.archived ? 'Unarchive' : 'Archive'}</a>
       `;
 
       emailsView.appendChild(emailDiv);
@@ -61,6 +64,11 @@ function load_mailbox(mailbox) {
       emailDiv.querySelector('.archiveMail').addEventListener('click', function(event) {
         event.preventDefault();
         archive_mail(this.getAttribute('data-email-id'), email.archived, mailbox);
+      });
+
+      emailDiv.querySelector('.reply').addEventListener('click', function(event) {
+        event.preventDefault();
+        reply_mail(this.getAttribute('data-email-id'), email);
       });
     });
   });
@@ -84,6 +92,39 @@ function archive_mail(email_id, currentlyArchived, currentMailbox) {
   });
 }
 
+function reply_mail(email_id,email) {
+  // Hide other views
+  document.querySelector('#compose-view').style.display = 'none';
+  document.querySelector('#emails-view').style.display = 'none';
+  document.querySelector('#view_mail').style.display = 'none';
+  document.querySelector('#reply-view').style.display = 'block';
+
+  const mail = email;
+
+  // Display the reply view
+  const replyView = document.querySelector('#reply-view');
+  replyView.style.display = 'block';
+  replyView.innerHTML = `
+    <h3>Reply Email</h3>
+    <form id="reply-form">
+        <div class="form-group">
+            From: <input disabled class="form-control" value="${mail.recipients}">
+        </div>
+        <div class="form-group">
+            To: <input id="reply-recipients" class="form-control" value="${mail.sender}">
+        </div>
+        <div class="form-group">
+            <input class="form-control" id="reply-subject" value="Re: ${mail.subject}" placeholder="Subject">
+        </div>
+        <textarea class="form-control" id="compose-body" placeholder="Body">
+          \n\n-----\nReplying to [${email.timestamp}]:\n${email.body}</textarea>
+        <input type="submit" id="reply-send" class="btn btn-primary"/>
+    </form>
+  `;
+
+  // Add event listener for form submission (adapt send_email or create a new function)
+  document.querySelector('#reply-form').addEventListener('submit', send_reply);
+}
 
 
 
@@ -92,6 +133,7 @@ function view_mail(email_id) {
   // Hide other views and display the view_mail section
   document.querySelector('#emails-view').style.display = 'none';
   document.querySelector('#compose-view').style.display = 'none';
+  document.querySelector('#reply-view').style.display = 'none'
   const viewMailDiv = document.querySelector('#view_mail');
   viewMailDiv.style.display = 'block';
   viewMailDiv.innerHTML = '';  // Clear any previous content
@@ -110,6 +152,10 @@ function view_mail(email_id) {
       <p>Timestamp: ${mail.timestamp}</p>
       <hr>
       <p>${mail.body}</p>
+      <br>
+      <br>
+      <br>
+      <a href="#" class="reply btn btn-danger" data-email-id=${mail.id}">Reply</a>
     `;
 
     // Append the div to the view_mail section
@@ -117,7 +163,7 @@ function view_mail(email_id) {
     fetch(`/emails/${email_id}`, {
       method: 'PUT',
       body: JSON.stringify({
-          archived: true
+          read: true
       })
     })
   })
@@ -132,7 +178,32 @@ function view_mail(email_id) {
 
 
 
+function send_reply(Event) {
+  Event.preventDefault();
 
+  const recipient = document.querySelector('#reply-recipients').value;
+  const subject = document.querySelector('#reply-subject').value;
+  const body = document.querySelector('#reply-body').value;
+
+  console.log('Recipient:', recipient, 'Subject:', subject, 'Body:', body);
+
+  fetch('/emails', {
+    method: 'POST',
+    body: JSON.stringify({
+      recipients: recipient,
+      subject: subject,
+      body: body
+    })
+  })
+  .then(res => res.json())
+  .then(result => {
+    console.log("reply sent: ", result)
+    load_mailbox('sent')
+  })
+  .catch(error => {
+    console.error("Error in reply:", error);
+  })
+}
 
 
 function send_email(Event) {
