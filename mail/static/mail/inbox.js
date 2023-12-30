@@ -33,40 +33,60 @@ function load_mailbox(mailbox) {
   document.querySelector('#emails-view').style.display = 'block';
   document.querySelector('#compose-view').style.display = 'none';
   document.querySelector('#view_mail').style.display = 'none';
-  
+
   fetch(`emails/${mailbox}`)
   .then(res => res.json())
   .then(emails => {
-    console.log(emails)
-    const emailsView = document.querySelector('#emails-view')
+    const emailsView = document.querySelector('#emails-view');
     emailsView.innerHTML = `<h3>${mailbox.charAt(0).toUpperCase() + mailbox.slice(1)}</h3>`;
 
-    const list = document.createElement('ul');
-    emailsView.appendChild(list);
+    emails.forEach(email => {
+      const emailDiv = document.createElement('div');
+      emailDiv.className = email.read ? 'email-box read' : 'email-box unread';
+      emailDiv.innerHTML = `
+        <strong>From:</strong> ${email.sender} <br>
+        <strong>Subject:</strong> ${email.subject} <br>
+        <strong>Timestamp:</strong> ${email.timestamp} <br>
+        <a href="#" class="openmail" data-email-id="${email.id}">View Email</a>
+        <a href="#" class="archiveMail" data-email-id="${email.id}">${email.archived ? 'Unarchive' : 'Archive'}</a>
+      `;
 
-      emails.forEach(email => {
-        // Create a div for each email
-        const emailDiv = document.createElement('div');
-        emailDiv.className = email.read ? 'email-box read' : 'email-box unread';
-        emailDiv.innerHTML = `
-          <strong>From:</strong> ${email.sender} <br>
-          <strong>Subject:</strong> ${email.subject} <br>
-          <strong>Timestamp:</strong> ${email.timestamp} <br>
-          <a href="#" class="openmail" data-email-id="${email.id}">View Email</a>
-        `;
-  
-        // Append the div to the emails view
-        emailsView.appendChild(emailDiv);
+      emailsView.appendChild(emailDiv);
 
-        emailDiv.querySelector('.openmail').addEventListener('click', function(event) {
-          event.preventDefault();
-          view_mail(this.getAttribute('data-email-id'));
-      })
-    })
+      emailDiv.querySelector('.openmail').addEventListener('click', function(event) {
+        event.preventDefault();
+        view_mail(this.getAttribute('data-email-id'));
+      });
 
-  
-  }) 
+      emailDiv.querySelector('.archiveMail').addEventListener('click', function(event) {
+        event.preventDefault();
+        archive_mail(this.getAttribute('data-email-id'), email.archived, mailbox);
+      });
+    });
+  });
 }
+
+
+
+function archive_mail(email_id, currentlyArchived, currentMailbox) {
+  fetch(`/emails/${email_id}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      archived: !currentlyArchived // Toggle the archived status
+    })
+  })
+  .then(() => {
+    // After changing the archived status, refresh the mailbox view
+    load_mailbox(currentMailbox); // Or another mailbox, depending on your logic
+  })
+  .catch(error => {
+    console.error('Error:', error);
+  });
+}
+
+
+
+
 
 function view_mail(email_id) {
   // Hide other views and display the view_mail section
@@ -94,11 +114,18 @@ function view_mail(email_id) {
 
     // Append the div to the view_mail section
     viewMailDiv.appendChild(mailDiv);
+    fetch(`/emails/${email_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+          archived: true
+      })
+    })
   })
   .catch(error => {
     console.error('Error:', error);
     viewMailDiv.innerHTML = `<p>Error loading email.</p>`;
   });
+  
 
   console.log("view_mail loaded");
 }
